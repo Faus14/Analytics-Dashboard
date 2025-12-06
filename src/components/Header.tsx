@@ -1,4 +1,5 @@
 import { Shield, RefreshCw, ChevronDown, Wifi, WifiOff } from 'lucide-react';
+import { useTick } from '../contexts/TickContext';
 
 interface HeaderProps {
   onSelectToken: () => void;
@@ -7,7 +8,8 @@ interface HeaderProps {
 }
 
 export function Header({ onSelectToken, onRefresh, isRefreshing }: HeaderProps) {
-  const networkStatus = true; // Mock status - always UP
+  const { currentTick, error } = useTick();
+  const networkStatus = !error; // Connected if no error
 
   return (
     <header className="border-b border-white/10 bg-[#0B0F16]/80 backdrop-blur-xl sticky top-0 z-50">
@@ -19,7 +21,14 @@ export function Header({ onSelectToken, onRefresh, isRefreshing }: HeaderProps) 
               <Shield className="w-7 h-7 text-[#0B0F16]" />
             </div>
             <div>
-              <h1 className="text-white">Nostromo Guardian</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-white">Nostromo Guardian</h1>
+                {currentTick > 0 && (
+                  <span className="px-2 py-1 bg-[#00F5FF]/10 border border-[#00F5FF]/20 rounded text-xs text-[#00F5FF]">
+                    Tick {currentTick.toLocaleString()}
+                  </span>
+                )}
+              </div>
               <p className="text-white/60 text-sm">Real-time analytics for Qubic ecosystem tokens</p>
             </div>
           </div>
