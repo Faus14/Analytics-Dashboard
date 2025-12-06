@@ -1,75 +1,96 @@
 import { Users, TrendingUp, Shield, Droplet, Activity, AlertTriangle, CheckCircle } from 'lucide-react';
 import { MetricCard } from './MetricCard';
+import { useEffect, useState } from 'react';
+import { getBalance } from '../services/qubic';
+import { useTick } from '../contexts/TickContext';
 
 interface TokenOverviewProps {
   selectedToken: string;
 }
 
 export function TokenOverview({ selectedToken }: TokenOverviewProps) {
+  const { currentTick } = useTick(); // Use shared tick from context
+  const [balance, setBalance] = useState<{ id: string; balance: string; validForTick?: number } | null>(null);
+  const demoIdentity = 'QXMRTKAIIGLUREPIQPCMHCKWSIPDTUYFCFNYXQLTECSUJVYEMMDELBMDOEYB';
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        const balRes = await getBalance(demoIdentity);
+        if (balRes?.balance) {
+          setBalance({
+            id: balRes.balance.id,
+            balance: balRes.balance.balance,
+            validForTick: balRes.balance.validForTick
+          });
+        }
+      } catch (e) {
+        console.warn('balance failed', e);
+      }
+    };
+
+    fetchBalance();
+    // Refresh balance every 60 seconds
+    const interval = setInterval(fetchBalance, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const metrics = [
     {
-      title: 'Token Name & Contract',
-      value: selectedToken,
-      subtitle: '0x742d...9f4a',
-      icon: Shield,
-      color: 'cyan',
-      tooltip: 'Token identifier and contract address'
-    },
-    {
-      title: 'Current Holders',
-      value: '12,847',
-      change: '+3.2%',
+      title: 'Identity Demo',
+      value: balance?.id ? balance.id.substring(0, 12) + '...' : 'Cargando...',
+      change: balance?.validForTick ? `Tick: ${balance.validForTick}` : undefined,
       icon: Users,
-      color: 'cyan',
-      tooltip: 'Total number of unique token holders'
+      color: 'cyan' as const,
+      tooltip: 'Example identity from Qubic RPC'
     },
     {
-      title: 'New Holders (24h)',
-      value: '247',
-      change: '+12.4%',
+      title: 'Balance QU',
+      value: balance?.balance ? (BigInt(balance.balance) / BigInt(1000)).toString() : '0',
+      subtitle: 'En unidades de QU',
       icon: TrendingUp,
-      color: 'violet',
-      tooltip: 'New holders in the last 24 hours'
+      color: 'violet' as const,
+      tooltip: 'Current balance in Qubic units'
     },
     {
-      title: 'Concentration Score',
-      value: '34.2%',
-      subtitle: 'Top 10 wallets',
+      title: 'Estado RPC',
+      value: currentTick > 0 ? 'Conectado ✓' : 'Desconectado ✗',
+      subtitle: selectedToken || 'QUBIC-ALPHA',
       icon: AlertTriangle,
-      color: 'yellow',
-      tooltip: 'Percentage held by top 10 wallets'
+      color: currentTick > 0 ? ('green' as const) : ('yellow' as const),
+      tooltip: 'Connection status to Qubic RPC endpoint'
     },
     {
-      title: 'Liquidity Health',
-      value: 'Good',
-      subtitle: '$2.4M locked',
+      title: 'Endpoint RPC',
+      value: 'rpc.qubic.org',
+      subtitle: 'Live Tree API v1',
       icon: Droplet,
-      color: 'cyan',
-      tooltip: 'Current liquidity pool status'
+      color: 'cyan' as const,
+      tooltip: 'Active RPC endpoint (read-only)'
     },
     {
-      title: 'Volume 24h',
-      value: '$847K',
-      change: '+24.6%',
+      title: 'Datos en Tiempo Real',
+      value: '✓ Habilitado',
+      change: 'Se actualiza cada tick (~12s)',
       icon: Activity,
-      color: 'violet',
-      tooltip: 'Trading volume in the last 24 hours'
+      color: 'violet' as const,
+      tooltip: 'Real-time data fetching'
     },
     {
-      title: 'Risk Score',
-      value: '32/100',
-      subtitle: 'Low Risk',
+      title: 'Seguridad',
+      value: 'Public RPC',
+      subtitle: 'Sin llaves privadas',
       icon: CheckCircle,
-      color: 'green',
-      tooltip: 'Overall risk assessment (0-100)'
+      color: 'green' as const,
+      tooltip: 'Read-only, no sensitive data'
     },
     {
-      title: 'Growth Score',
-      value: '78/100',
-      subtitle: 'High Growth',
+      title: 'Próximos Pasos',
+      value: 'Ver Transacciones',
+      subtitle: 'Y Whale Activity',
       icon: TrendingUp,
-      color: 'green',
-      tooltip: 'Growth potential indicator (0-100)'
+      color: 'green' as const,
+      tooltip: 'Explore real blockchain data'
     }
   ];
 
@@ -77,9 +98,21 @@ export function TokenOverview({ selectedToken }: TokenOverviewProps) {
     <section className="mb-8">
       <h2 className="text-white/80 mb-6">Token Overview</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map((metric, index) => (
-          <MetricCard key={index} {...metric} />
-        ))}
+        {metrics.map((metric, index) => {
+          const { title, value, subtitle, icon, color, tooltip, change } = metric;
+          return (
+            <MetricCard
+              key={index}
+              title={title}
+              value={value}
+              subtitle={subtitle}
+              icon={icon}
+              color={color}
+              tooltip={tooltip}
+              change={change}
+            />
+          );
+        })}
       </div>
     </section>
   );

@@ -1,79 +1,15 @@
-import { TrendingDown, TrendingUp, Droplet, AlertTriangle, Fish, Wallet } from 'lucide-react';
+import { TrendingDown, TrendingUp, Droplet, AlertTriangle, Fish, Wallet, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { getRecentAlerts } from '../services/qubic';
 
-const events = [
-  {
-    id: 1,
-    type: 'whale_sell',
-    message: 'Whale #1 sold 4,200 tokens',
-    impact: 'High',
-    timestamp: '2 min ago',
-    icon: Fish,
-    color: 'red'
-  },
-  {
-    id: 2,
-    type: 'new_wallet',
-    message: 'New wallet purchased 1,500 tokens',
-    impact: 'Medium',
-    timestamp: '5 min ago',
-    icon: Wallet,
-    color: 'green'
-  },
-  {
-    id: 3,
-    type: 'liquidity',
-    message: 'Liquidity dropped 22%',
-    impact: 'High',
-    timestamp: '12 min ago',
-    icon: Droplet,
-    color: 'red'
-  },
-  {
-    id: 4,
-    type: 'whale_buy',
-    message: 'Whale #3 purchased 8,500 tokens',
-    impact: 'High',
-    timestamp: '18 min ago',
-    icon: TrendingUp,
-    color: 'green'
-  },
-  {
-    id: 5,
-    type: 'warning',
-    message: 'Concentration increased to 34.2%',
-    impact: 'Medium',
-    timestamp: '25 min ago',
-    icon: AlertTriangle,
-    color: 'yellow'
-  },
-  {
-    id: 6,
-    type: 'whale_sell',
-    message: 'Whale #2 sold 2,100 tokens',
-    impact: 'Medium',
-    timestamp: '34 min ago',
-    icon: TrendingDown,
-    color: 'red'
-  },
-  {
-    id: 7,
-    type: 'new_wallet',
-    message: 'New wallet purchased 890 tokens',
-    impact: 'Low',
-    timestamp: '41 min ago',
-    icon: Wallet,
-    color: 'green'
-  },
-  {
-    id: 8,
-    type: 'whale_buy',
-    message: 'Whale #5 purchased 3,200 tokens',
-    impact: 'Medium',
-    timestamp: '52 min ago',
-    icon: TrendingUp,
-    color: 'green'
-  }
-];
+interface AlertEvent {
+  id: number;
+  type: 'whale_sell' | 'whale_buy' | 'new_wallet' | 'large_tx';
+  message: string;
+  impact: 'High' | 'Medium' | 'Low';
+  timestamp: string;
+  amount?: number;
+}
 
 const getImpactColor = (impact: string) => {
   switch (impact) {
@@ -93,41 +29,124 @@ const getEventIconColor = (color: string) => {
   }
 };
 
+const getEventIcon = (type: string) => {
+  switch (type) {
+    case 'whale_sell': return TrendingDown;
+    case 'whale_buy': return TrendingUp;
+    case 'new_wallet': return Wallet;
+    case 'large_tx': return Fish;
+    default: return AlertTriangle;
+  }
+};
+
+const getEventColor = (type: string) => {
+  switch (type) {
+    case 'whale_sell': return 'red';
+    case 'whale_buy': return 'green';
+    case 'new_wallet': return 'green';
+    default: return 'yellow';
+  }
+};
+
 export function WhaleAlertsFeed() {
+  const [events, setEvents] = useState<AlertEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchAlerts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const alerts = await getRecentAlerts(5, 1000); // Last 5 ticks, threshold 1000 QU
+      if (alerts && alerts.length > 0) {
+        setEvents(alerts);
+      } else {
+        // No alerts in this tick range
+        setEvents([]);
+      }
+    } catch (e) {
+      console.error('Failed to fetch alerts:', e);
+      setError(e instanceof Error ? e.message : 'Failed to fetch data');
+      setEvents([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleManualRefresh = () => {
+    setRefreshing(true);
+    fetchAlerts();
+  };
+
+  useEffect(() => {
+    fetchAlerts();
+    // Refresh every ~12 seconds (one tick)
+    const interval = setInterval(fetchAlerts, 12000);
+    return () => clearInterval(interval);
+  }, []);
   return (
     <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-white/20 transition-all">
       <div className="mb-6">
-        <h3 className="text-white mb-1">Whale Alerts & Risk Events</h3>
-        <p className="text-white/60 text-sm">Live feed of significant activities</p>
+        <div className="flex items-center justify-between">
+          <h3 className="text-white mb-1 flex items-center gap-2">
+            Whale Alerts & Risk Events
+            <button
+              onClick={handleManualRefresh}
+              disabled={refreshing}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all disabled:opacity-50"
+              title="Refresh alerts"
+            >
+              <RefreshCw className={`w-4 h-4 text-[#9B5CFF] ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </h3>
+        </div>
+        <p className="text-white/60 text-sm">
+          {error 
+            ? '⚠️ Error loading data from RPC' 
+            : 'Live feed from Qubic RPC (last 5 ticks)'}
+        </p>
       </div>
 
-      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-        {events.map((event) => {
-          const Icon = event.icon;
-          return (
-            <div
-              key={event.id}
-              className="bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/8 transition-all"
-            >
-              <div className="flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center border ${getEventIconColor(event.color)}`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm mb-2">{event.message}</p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-xs px-2 py-1 rounded border ${getImpactColor(event.impact)}`}>
-                      {event.impact} impact
-                    </span>
-                    <span className="text-white/40 text-xs">{event.timestamp}</span>
+      {loading ? (
+        <div className="h-[500px] flex items-center justify-center">
+          <p className="text-white/60">Loading alerts...</p>
+        </div>
+      ) : events.length === 0 ? (
+        <div className="h-[500px] flex items-center justify-center">
+          <p className="text-white/60">No significant activity detected</p>
+        </div>
+      ) : (
+        <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+          {events.map((event) => {
+            const Icon = getEventIcon(event.type);
+            const color = getEventColor(event.type);
+            return (
+              <div
+                key={event.id}
+                className="bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/8 transition-all"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center border ${getEventIconColor(color)}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm mb-2">{event.message}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs px-2 py-1 rounded border ${getImpactColor(event.impact)}`}>
+                        {event.impact} impact
+                      </span>
+                      <span className="text-white/40 text-xs">{event.timestamp}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
